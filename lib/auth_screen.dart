@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'home_screen.dart';
+import 'admin_screen.dart';
 import 'theme.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -12,7 +13,6 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-
   final supabase = Supabase.instance.client;
 
   final TextEditingController _emailController = TextEditingController();
@@ -35,67 +35,82 @@ class _AuthPageState extends State<AuthPage> with SingleTickerProviderStateMixin
   }
 
   Future<void> createAccount() async {
-  final email = _emailController.text.trim();
-  final password = _passwordController.text.trim();
-  final confirmPassword = _confirmPasswordController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
 
-  if (password != confirmPassword) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Пароли не совпадают')),
-    );
-    return;
-  }
-
-  try {
-    final res = await supabase.auth.signUp(email: email, password: password);
-    if (res.user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
-    } else {
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не удалось зарегистрироваться')),
+        const SnackBar(content: Text('Пароли не совпадают')),
+      );
+      return;
+    }
+
+    try {
+      final res = await supabase.auth.signUp(email: email, password: password);
+      if (res.user != null) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось зарегистрироваться')),
+        );
+      }
+    } on AuthException catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Ошибка регистрации: ${error.message}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Неизвестная ошибка: $e')),
       );
     }
-  } on AuthException catch (error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Ошибка регистрации: ${error.message}')),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Неизвестная ошибка: $e')),
-    );
   }
-}
 
-Future<void> login() async {
-  final email = _emailController.text.trim();
-  final password = _passwordController.text.trim();
+  Future<void> login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
 
-  try {
-    final res = await supabase.auth.signInWithPassword(email: email, password: password);
-    if (res.user != null) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const HomeScreen()),
-      );
-    } else {
+    try {
+      final res = await supabase.auth.signInWithPassword(email: email, password: password);
+      final user = res.user;
+      if (user != null) {
+        // Получение роли пользователя из таблицы users
+        final userData = await supabase
+            .from('users')
+            .select('role')
+            .eq('email', email)
+            .limit(1)
+            .maybeSingle();
+
+        if (userData != null && (userData['role'] == 'админ' || userData['role'] == 'admin')) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminScreen()),
+          );
+          return;
+        }
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Не удалось войти')),
+        );
+      }
+    } on AuthException catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Не удалось войти')),
+        SnackBar(content: Text('Ошибка входа: ${error.message}')),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Неизвестная ошибка: $e')),
       );
     }
-  } on AuthException catch (error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Ошибка входа: ${error.message}')),
-    );
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Неизвестная ошибка: $e')),
-    );
   }
-}
-
 
   @override
   Widget build(BuildContext context) {
